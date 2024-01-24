@@ -37,9 +37,8 @@ bool green_to_Vermont = false;
 
 
 /**
- * @brief Returns True with the probability of 1 / modulo_prob
- *      Used here to randomly flip green lights sometimes
- * @param modulo_prob
+ * @brief Returns True with the probability (1 / modulo_prob)
+ * @param modulo_prob 
  * @return true 
  * @return false 
  */
@@ -177,29 +176,33 @@ void exit_bridge(char* direction) {
     bool *destination_green_light = to_Vermont ? &green_to_Hanover : &green_to_Vermont;
     pthread_cond_t *cv_origin_green_light = to_Vermont ? &cv_green_to_Vermont : &cv_green_to_Hanover;
     
+    // Allows us to keep track of the number of cars left on the bridge
     int *on_bridge_to_destination = to_Vermont ? &on_bridge_to_Vermont : &on_bridge_to_Hanover;
     // Any cars that have been signaled for the green light, but the bridge is full
     int *origin_queue = to_Vermont ? &queued_in_vermont : &queued_in_hanover;
     // Remaining cars in both directions for if we should change the light
     int remaining_to_desination = to_Vermont ? remaining_to_Vermont : remaining_to_Hanover;
     int remaining_to_origin = to_Vermont ? remaining_to_Hanover : remaining_to_Vermont;
-    // For string formatting when changing the yellow/red/green light
+    // For string formatting when changing the green/yellow/red light
     char* origin_side = to_Vermont ? "Hanover" : "Vermont";
     char* destination_side = to_Vermont ? "Vermont" : "Hanover";
     // To keep track of how many cars have already finished
     int * cars_finished_to_destination = to_Vermont ? &cars_finished_to_Vermont : &cars_finished_to_Hanover;
-    // For signaling green light
+    // For signaling the other green light
     char* opposing_direction = to_Vermont ? "to_Hanover" : "to_Vermont";
     
-    
-    // Decrement the 
+    // The car is now off the bridge and at the desination, but we still need to communicate
     *on_bridge_to_destination -= 1;
     remaining_to_desination -= 1;
-
+    *cars_finished_to_destination += 1;
+    
+    // Green light is still on
     if (*origin_green_light) {
         // Cars are queued for this light
         if (*origin_queue > 0) {
             pthread_cond_signal(&bridge_full);
+    
+        // There are no cars left - so we should switch the light
         } else {
             // There are no cars left - so we should switch the light
             if (remaining_to_desination == 0) {
@@ -216,7 +219,7 @@ void exit_bridge(char* direction) {
             }
         }
 
-        // Now a small chance to swap the green light
+        // Now a small chance to swap the green light if we sense cars on the other side
         if (remaining_to_origin > 0) {
             if (*origin_green_light && rand_bool(2 * MAX_CARS)) {
                 printf("||| To %s light turning yellow |||\n", destination_side);
@@ -227,8 +230,8 @@ void exit_bridge(char* direction) {
         // Light is yellow --> let the remaining cars in queue go
         if (*origin_queue > 0) {
             pthread_cond_signal(&bridge_full);
+        // All cars are off the bridge --> Turn the light red, the other light green, and signal 
         } else if (*on_bridge_to_destination == 0){
-            // No more cars allowed to go. Swap the lights
             printf("XXX To %s light turning red XXX\n", destination_side);
             sleep(1); // For dramatic effect
             printf("+++ To %s light turned green +++\n", origin_side);
@@ -237,109 +240,6 @@ void exit_bridge(char* direction) {
         }
     }
 
-    *cars_finished_to_destination += 1;
-
-    // if (strcmp(direction, "to_Vermont") == 0) {
-    //     on_bridge_to_Vermont -= 1;
-    //     remaining_to_Vermont -= 1;
-
-    //     // Green light is on, we can continue to let new cars on from our side
-    //     if (green_to_Vermont) {
-    //         // Cars are queued for this green light
-    //         if (queued_in_hanover > 0) {
-    //             pthread_cond_signal(&bridge_full);
-    //         } else {
-    //             // Switch the light here no matter what if there are no cars left
-    //             if (remaining_to_Vermont == 0) {
-    //                 printf("||| To Vermont light turning yellow |||\n");
-    //                 sleep(1); // For dramatic effect
-    //                 green_to_Vermont = false;
-    //                 printf("XXX To Vermont light turning red XXX\n");
-    //                 sleep(1); // For dramatic effect
-    //                 green_to_Hanover = true;
-    //                 printf("+++ To Hanover light turning green +++\n");
-    //                 signal_new_greenlight("to_Hanover");
-    //             } else {
-    //                 pthread_cond_signal(&cv_green_to_Vermont);
-    //             }
-    //         }
-    //         // Randomly switch the light with probability 1/ (2 * MAX_CARS)
-    //         if (remaining_to_Hanover > 0) {
-    //             if (green_to_Vermont && rand_bool(2 * MAX_CARS)) {
-    //                 printf("||| To Vermont light turning yellow |||\n");
-    //                 green_to_Vermont = false;
-    //             }
-    //         }
-
-    //     } else {
-    //         // Allow the final waiting cars to go
-    //         if (queued_in_vermont > 0) {
-    //             pthread_cond_signal(&bridge_full);
-            
-    //         // We are safe - switch the lights and signal MAX_CARS cars on the other end
-    //         } else if (on_bridge_to_Vermont == 0) {
-    //             printf("XXX To Vermont light turning red XXX\n");
-    //             sleep(1); // For dramatic effect
-    //             printf("+++ To Hanover light turning green +++\n");
-    //             green_to_Hanover = true;
-    //             signal_new_greenlight("to_Hanover");
-    //         }
-    //     }
-
-    //     cars_finished_to_Vermont += 1;
-    // } else {
-    //     on_bridge_to_Hanover -= 1;
-    //     remaining_to_Hanover -= 1;
-
-    //     // Green light is on, we can continue to let new cars on from our side
-    //     if (green_to_Hanover) {
-    //         // Cars are queued for this green light
-    //         if (queued_in_vermont > 0) {
-    //             // printf("I think the bridge is full with WIH %d\n", queued_in_hanover);
-    //             pthread_cond_signal(&bridge_full);
-    //         } else {
-    //             // printf("enter here\n");
-    //             // Switch the light here no matter what if there are no cars left
-    //             if (remaining_to_Hanover == 0) {
-    //                 printf("||| To Hanover light turning yellow |||\n");
-    //                 sleep(1); // For dramatic effect
-    //                 green_to_Hanover = false;
-    //                 printf("XXX To Hanover light turning red XXX\n");
-    //                 sleep(1); // For dramatic effect
-    //                 green_to_Vermont = true;
-    //                 printf("+++ To Vermont light turning green +++\n");
-    //                 signal_new_greenlight("to_Vermont");
-    //             } else {
-    //                 pthread_cond_signal(&cv_green_to_Hanover);
-    //             }
-    //         }
-    //         // Randomly switch the light with low probability relative to bridge size
-    //         if (remaining_to_Vermont > 0) {
-    //             if (green_to_Hanover && rand_bool(2 * MAX_CARS)) {
-    //                 printf("||| To Hanover light turning yellow |||\n");
-    //                 green_to_Hanover = false;
-    //             }
-    //         }
-
-    //     } else {
-    //         // Allow the final waiting cars to go
-    //         if (queued_in_vermont > 0) {
-    //             pthread_cond_signal(&bridge_full);
-            
-    //         // We are safe - switch the lights and signal MAX_CARS cars on the other end
-    //         } else if (on_bridge_to_Hanover == 0) {
-    //             // printf("signaling to vermont cars here\n");
-    //             printf("XXX To Hanover light turning red XXX\n");
-    //             sleep(1); // For dramatic effect
-    //             green_to_Vermont = true;
-    //             printf("+++ To Vermont light turning green +++\n");
-    //             signal_new_greenlight("to_Vermont");
-    //         }
-    //     }
-
-    //     cars_finished_to_Hanover += 1;
-    // }
-    printf("Exiting bridge %s now\n", direction);
     pthread_mutex_unlock(&bridge_lock);
 }
 
@@ -396,6 +296,7 @@ int main(int argc, char* argv[]) {
         pthread_create(&all_car_threads[total_to_Vermont + to_Hanover_car], NULL, one_vehicle, "to_Hanover");
     }
 
+    // Wait for child threads to finish before exiting main thread
     for (int thread = 0; thread < total_to_Hanover + total_to_Vermont; thread++) {
         pthread_join(all_car_threads[thread], NULL);
     }
