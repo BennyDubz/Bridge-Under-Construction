@@ -1,3 +1,4 @@
+# 
 # Ben Williams '25, Makefile for bridge project
 
 EXECS = bridge
@@ -11,6 +12,9 @@ $(EXECS) : $(OBJS)
 	gcc $(CFLAGS) -o $@ $^
 
 bridge.o : bridge.c
+
+test:
+	./testing.sh
 
 clean:
 	rm -f *.o *~ $(EXECS)
